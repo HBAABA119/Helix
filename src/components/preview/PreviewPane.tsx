@@ -9,6 +9,7 @@ export function PreviewPane() {
   const { files } = useFileSystem();
   const [previewContent, setPreviewContent] = useState('');
   const [error, setError] = useState('');
+  const [hasContent, setHasContent] = useState(false);
 
   useEffect(() => {
     generatePreview();
@@ -21,7 +22,8 @@ export function PreviewPane() {
       const jsFiles = files.filter(f => f.name.endsWith('.js'));
 
       if (!htmlFile) {
-        setPreviewContent('<div style="padding: 20px; text-align: center; color: #666;">No HTML file found. Create an index.html file to see the preview.</div>');
+        setPreviewContent('');
+        setHasContent(false);
         return;
       }
 
@@ -40,6 +42,7 @@ export function PreviewPane() {
       }
 
       setPreviewContent(html);
+      setHasContent(true);
       setError('');
     } catch (err) {
       setError('Error generating preview: ' + (err as Error).message);
@@ -47,29 +50,28 @@ export function PreviewPane() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="h-12 border-b border-border flex items-center px-4">
-        <h3 className="font-semibold text-sm">Preview</h3>
-        <div className="ml-auto flex items-center space-x-2">
-          <Button variant="ghost" size="sm" onClick={generatePreview}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm">
-            <ExternalLink className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-      
-      <div className="flex-1 bg-white">
+    <div className="flex flex-col h-full bg-gray-950">
+      <div className="flex-1 bg-gray-900">
         {error ? (
-          <div className="p-4 text-red-500 text-sm">{error}</div>
-        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-red-400 text-sm">{error}</div>
+          </div>
+        ) : hasContent ? (
           <iframe
             srcDoc={previewContent}
             className="w-full h-full border-0"
             sandbox="allow-scripts allow-same-origin"
             title="Preview"
           />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="mb-6">
+                <div className="text-6xl font-bold text-gray-600 mb-4">h</div>
+              </div>
+              <p className="text-gray-400 text-lg">Your preview will appear here</p>
+            </div>
+          </div>
         )}
       </div>
     </div>

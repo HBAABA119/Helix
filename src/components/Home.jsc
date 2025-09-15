@@ -1,0 +1,7 @@
+import { Navigate } from 'next/router';
+
+const Home: React.FC = () => {
+  return <Navigate to "/" />
+};
+
+export default Home;

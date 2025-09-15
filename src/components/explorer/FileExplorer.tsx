@@ -100,15 +100,15 @@ export function FileExplorer() {
   };
 
   return (
-    <div className="w-64 bg-muted border-r border-border">
-      <div className="p-4 border-b border-border">
+    <div className="flex-1 bg-gray-900">
+      <div className="p-3 border-b border-gray-800">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-sm">Explorer</h3>
+          <h3 className="font-semibold text-sm text-gray-200">Explorer</h3>
           <div className="flex items-center space-x-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-6 w-6 text-gray-400 hover:text-gray-200"
               onClick={() => setShowNewFileInput(true)}
               title="New File"
             >
@@ -117,7 +117,7 @@ export function FileExplorer() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6"
+              className="h-6 w-6 text-gray-400 hover:text-gray-200"
               onClick={() => setShowNewFolderInput(true)}
               title="New Folder"
             >
@@ -173,7 +173,7 @@ export function FileExplorer() {
         ))}
         
         {rootFiles.length === 0 && (
-          <div className="p-4 text-center text-muted-foreground text-sm">
+          <div className="p-4 text-center text-gray-400 text-sm">
             No files yet. Create your first file!
           </div>
         )}

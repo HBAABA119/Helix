@@ -19,9 +19,7 @@ const nextConfig = {
     
     return config;
   },
-  experimental: {
-    serverComponentsExternalPackages: ['monaco-editor'],
-  },
+  serverExternalPackages: ['monaco-editor'],
   // Transpile undici to fix the private field syntax issue
   transpilePackages: ['undici'],
 }

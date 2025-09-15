@@ -12,6 +12,10 @@ interface FileSystemContextType {
   deleteFile: (id: string) => void;
   createFolder: (name: string, parentId?: string) => void;
   getFilesByParent: (parentId?: string) => ProjectFile[];
+  addFileFromPath: (filePath: string, content: string) => void;
+  getFileByPath: (filePath: string) => ProjectFile | null;
+  updateFileByPath: (filePath: string, content: string) => void;
+  getAllFiles: () => ProjectFile[];
 }
 
 const FileSystemContext = createContext<FileSystemContextType | null>(null);
@@ -70,6 +74,42 @@ export function FileSystemProvider({ children }: { children: React.ReactNode }) 
     return files.filter(file => file.parentId === parentId);
   }, [files]);
 
+  const addFileFromPath = useCallback((filePath: string, content: string) => {
+    const fileName = filePath.split('/').pop() || 'untitled';
+    const newFile: ProjectFile = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: fileName,
+      content,
+      path: filePath,
+      type: 'file',
+      parentId: undefined,
+    };
+    setFiles(prev => {
+      // Check if file already exists, update if it does
+      const existingIndex = prev.findIndex(f => f.path === filePath);
+      if (existingIndex !== -1) {
+        return prev.map((file, index) => 
+          index === existingIndex ? { ...file, content } : file
+        );
+      }
+      return [...prev, newFile];
+    });
+  }, []);
+
+  const getFileByPath = useCallback((filePath: string) => {
+    return files.find(file => file.path === filePath) || null;
+  }, [files]);
+
+  const updateFileByPath = useCallback((filePath: string, content: string) => {
+    setFiles(prev => prev.map(file => 
+      file.path === filePath ? { ...file, content } : file
+    ));
+  }, []);
+
+  const getAllFiles = useCallback(() => {
+    return files;
+  }, [files]);
+
   return (
     <FileSystemContext.Provider value={{
       files,
@@ -80,6 +120,10 @@ export function FileSystemProvider({ children }: { children: React.ReactNode }) 
       deleteFile,
       createFolder,
       getFilesByParent,
+      addFileFromPath,
+      getFileByPath,
+      updateFileByPath,
+      getAllFiles,
     }}>
       {children}
     </FileSystemContext.Provider>
