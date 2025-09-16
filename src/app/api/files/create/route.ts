@@ -9,69 +9,46 @@ export async function POST(request: NextRequest) {
     
     if (!files || !Array.isArray(files)) {
       return NextResponse.json(
-        { error: 'Invalid files data' },
+        { error: 'Invalid files array' },
         { status: 400 }
       );
     }
-
+    
     const results = [];
-    const projectRoot = process.cwd();
-
+    
     for (const file of files) {
       try {
         const { path, content } = file;
-        if (!path || typeof content !== 'string') {
-          results.push({
-            path,
-            success: false,
-            error: 'Invalid file data'
-          });
-          continue;
-        }
-
-        // Ensure the path is within the project directory for security
-        const fullPath = join(projectRoot, path);
-        if (!fullPath.startsWith(projectRoot)) {
-          results.push({
-            path,
-            success: false,
-            error: 'Invalid file path - outside project directory'
-          });
-          continue;
-        }
-
+        const fullPath = join(process.cwd(), path);
+        const dirPath = dirname(fullPath);
+        
         // Create directory if it doesn't exist
-        const dir = dirname(fullPath);
-        if (!existsSync(dir)) {
-          await mkdir(dir, { recursive: true });
+        if (!existsSync(dirPath)) {
+          await mkdir(dirPath, { recursive: true });
         }
-
-        // Write the file
+        
+        // Write file content
         await writeFile(fullPath, content, 'utf8');
         
         results.push({
           path,
           success: true,
-          message: `File created successfully`
+          message: 'File created successfully'
         });
       } catch (error) {
         results.push({
           path: file.path,
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: 'Failed to create file'
         });
       }
     }
-
-    return NextResponse.json({
-      success: true,
-      results
-    });
-
+    
+    return NextResponse.json({ results });
   } catch (error) {
-    console.error('File creation error:', error);
+    console.error('Error creating files:', error);
     return NextResponse.json(
-      { error: 'Failed to create files' },
+      { error: 'Failed to process file creation request' },
       { status: 500 }
     );
   }

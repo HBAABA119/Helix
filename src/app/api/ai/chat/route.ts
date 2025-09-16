@@ -1,114 +1,170 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Google Gemini configuration
-const genAI = new GoogleGenerativeAI('AIzaSyAmwt5GH5j59SMm9zskINTuBSijQD5on8c');
+// NVIDIA API configuration
+const NVIDIA_API_KEY = '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';
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, context, model = 'nvidia/llama-3.1-nemotron-nano-4b-v1.1', conversationHistory = [] } = await request.json();
+    const { message, context, model = 'auto', conversationHistory = [], projectId, chatMode = 'ask' } = await request.json();
 
-    // Generate system prompt based on project context
-    const systemPrompt = `You are Helix AI, an expert coding assistant. Be conversational, direct, and helpful like a skilled developer colleague.
+    // Auto model selection logic
+    let selectedModel = model;
+    if (model === 'auto') {
+      // Smart model selection based on context
+      const isCodeRelated = /\b(code|function|class|import|export|const|let|var|if|for|while|return)\b/i.test(message);
+      const isLongTask = message.length > 200 || /\b(build|create|implement|develop|design)\b/i.test(message);
+      
+      if (isCodeRelated) {
+        selectedModel = 'qwen/qwen3-coder-480b-a35b-instruct';
+      } else if (isLongTask) {
+        selectedModel = 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
+      } else {
+        selectedModel = 'meta/llama-3.2-3b-instruct';
+      }
+    }
 
-CORE BEHAVIOR:
-- Talk naturally - "I'll", "Let me", "Here's" - like a human developer
-- Be concise and action-oriented
-- NO thinking process, reasoning, or explanations unless asked
-- Create/edit files silently without announcing it
-- Take immediate action when users ask for features
+    // Content filtering - only allow coding related questions
+    const codingKeywords = [
+      'code', 'programming', 'javascript', 'typescript', 'html', 'css', 'react', 'next',
+      'component', 'function', 'variable', 'api', 'database', 'frontend', 'backend',
+      'debug', 'error', 'bug', 'fix', 'build', 'deploy', 'git', 'npm', 'yarn',
+      'algorithm', 'data structure', 'class', 'object', 'array', 'string', 'number',
+      'boolean', 'async', 'await', 'promise', 'callback', 'event', 'dom', 'json',
+      'xml', 'http', 'https', 'rest', 'graphql', 'sql', 'nosql', 'mongodb', 'firebase',
+      'auth', 'login', 'register', 'session', 'token', 'jwt', 'oauth', 'security',
+      'performance', 'optimization', 'responsive', 'mobile', 'desktop', 'browser',
+      'server', 'client', 'framework', 'library', 'package', 'module', 'import',
+      'export', 'interface', 'type', 'enum', 'generic', 'inheritance', 'polymorphism',
+      'encapsulation', 'abstraction', 'design pattern', 'mvc', 'mvvm', 'crud',
+      'game', 'animation', 'graphics', 'canvas', 'webgl', 'three.js', 'socket',
+      'websocket', 'real-time', 'live', 'stream', 'video', 'audio', 'media',
+      'style', 'styling', 'layout', 'responsive', 'flexbox', 'grid', 'bootstrap',
+      'tailwind', 'sass', 'scss', 'less', 'webpack', 'vite', 'rollup', 'babel',
+      'eslint', 'prettier', 'typescript', 'testing', 'jest', 'cypress', 'playwright',
+      'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'heroku', 'vercel', 'netlify'
+    ];
+    
+    const isCodingRelated = codingKeywords.some(keyword => 
+      message.toLowerCase().includes(keyword.toLowerCase())
+    ) || /\b(create|build|make|develop|implement|design|write|generate)\b.*\b(app|website|game|component|function|script|program|software|system|file|folder|page|route|api|database|ui|interface)\b/i.test(message)
+    || /\b(how to|how do I|how can I)\b.*\b(code|program|build|create|implement|design|develop)\b/i.test(message)
+    || /\b(what is|explain|tutorial|learn)\b.*\b(javascript|typescript|react|html|css|programming|coding|development)\b/i.test(message)
+    || /\b(help|assist|support)\b.*\b(code|coding|programming|development|debug|error|bug)\b/i.test(message);
+    
+    if (!isCodingRelated && chatMode !== 'agent') {
+      return NextResponse.json({
+        response: "I'm your coding assistant! I specialize in helping with programming, web development, software engineering, and technical implementation. Please ask me questions related to:\n\n• Programming languages (JavaScript, TypeScript, Python, etc.)\n• Web development (HTML, CSS, React, Next.js, etc.)\n• Software engineering and architecture\n• Debugging and troubleshooting\n• Code optimization and best practices\n• Development tools and workflows\n• Building apps, websites, and games\n\nWhat would you like to code today?",
+        codeBlocks: [],
+        filesToCreate: [],
+        filesToUpdate: [],
+        fileReadResults: [],
+        fileUpdateResults: [],
+        fileDeletionResults: [],
+        folderCreationResults: [],
+        terminalResults: [],
+        previewRequests: [],
+        userQuestions: [],
+        model: selectedModel,
+      });
+    }
 
-FILE OPERATIONS:
-Create files quietly with:
-\`\`\`[language]
-// [filepath]
-[code]
+    // Generate system prompt based on project context and chat mode
+    let systemPrompt = '';
+    
+    if (chatMode === 'agent') {
+      systemPrompt = `You are Helix AI Agent, a direct coding assistant that builds what users ask for.
+
+SIMPLE RULES:
+- Be conversational and direct
+- Build complete, working solutions
+- Create multiple files for games/apps (HTML, CSS, JS separately)
+- Use modern JavaScript and best practices
+- Make functional code that actually works
+
+CREATE FILES:
+\`\`\`html
+// [filepath].html
+[complete HTML]
 \`\`\`
 
-Update existing files with:
-\`\`\`[language]
-// [filepath] - UPDATE
-[updated code]
+\`\`\`css
+// [filepath].css
+[complete CSS]
 \`\`\`
 
-Read files when needed:
-\`\`\`read-file
-[filepath]
+\`\`\`javascript
+// [filepath].js
+[complete JavaScript]
 \`\`\`
-
-TERMINAL COMMANDS:
-\`\`\`terminal
-[command]
-\`\`\`
-
-EXAMPLES:
-User: "Make a button component"
-You: "I'll create a button component for you."
 
 \`\`\`tsx
-// src/components/Button.tsx
-export function Button({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
-  return (
-    <button onClick={onClick} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-      {children}
-    </button>
-  );
-}
+// [filepath].tsx
+[React component]
 \`\`\`
 
-User: "Add TypeScript types"
-You: "I'll add proper TypeScript interfaces."
+PROJECT: Next.js 15.5.3, TypeScript, Tailwind CSS, Firebase Auth
+FILES: ${context?.files?.map(f => `${f.name}`).join(', ') || 'None'}
 
-\`\`\`ts
-// src/types/common.ts
-export interface ButtonProps {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: 'primary' | 'secondary';
-}
-\`\`\`
+Build it now!`;
+    } else {
+      systemPrompt = `You are Helix AI, a helpful coding assistant that talks like a developer friend.
 
-PROJECT CONTEXT:
-Tech Stack: Next.js 15.5.3, TypeScript, Tailwind CSS, Firebase Auth
-Files: ${context?.files?.map(f => `${f.name}`).join(', ') || 'None'}
+BE HELPFUL:
+- Answer questions clearly
+- Provide working code examples
+- Explain concepts simply
+- Suggest best practices
+- Be conversational and friendly
 
-RULES:
-- Always be helpful and proactive
-- Use TypeScript for everything
-- Follow Tailwind CSS for styling
-- Components go in src/components/
-- Utilities in src/lib/
-- Read existing files before modifying
-- Install packages when needed
-- No explanations unless requested
-- Work like a senior developer
+PROJECT: Next.js 15.5.3, TypeScript, Tailwind CSS, Firebase Auth
+FILES: ${context?.files?.map(f => `${f.name}`).join(', ') || 'None'}
 
-Be direct, efficient, and helpful!`;
+Help the developer succeed!`;
+    }
 
     let response = '';
 
     try {
-      // Use Google Gemini API
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-      
-      // Build conversation history for context
-      const contextMessages = conversationHistory.slice(-5).map(msg => 
-        `${msg.role}: ${msg.content}`
-      ).join('\n');
-      
-      const fullPrompt = `${systemPrompt}
+      // Use NVIDIA API
+      const requestBody = {
+        model: selectedModel,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          ...conversationHistory.slice(-5),
+          {
+            role: 'user',
+            content: message
+          }
+        ],
+        temperature: selectedModel.includes('nemotron') ? 0.6 : 0.7,
+        top_p: selectedModel.includes('nemotron') ? 0.95 : 0.8,
+        max_tokens: selectedModel.includes('nemotron') ? 65536 : 4096,
+        stream: false
+      };
 
-Conversation history:
-${contextMessages}
+      const nvidiaResponse = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-User: ${message}`;
-      
-      const result = await model.generateContent(fullPrompt);
-      response = result.response.text() || 'No response generated';
+      if (!nvidiaResponse.ok) {
+        throw new Error(`NVIDIA API Error: ${nvidiaResponse.status} ${nvidiaResponse.statusText}`);
+      }
+
+      const nvidiaData = await nvidiaResponse.json();
+      response = nvidiaData.choices?.[0]?.message?.content || 'No response generated';
       
       // Remove any formal structure and robotic language
       response = response.replace(/<think>[\s\S]*?<\/think>/gi, '');
@@ -133,11 +189,15 @@ User: ${message}`;
 
     // Extract code blocks and commands
     const codeBlockRegex = /```(?:(\w+)\s*)?(?:\n|\r\n)?([\s\S]*?)```/g;
-    const codeBlocks = [];
-    const filesToCreate = [];
-    const filesToUpdate = [];
-    const filesToRead = [];
-    const terminalCommands = [];
+    const codeBlocks: Array<{ language: string; code: string }> = [];
+    const filesToCreate: Array<{ path: string; content: string; language: string }> = [];
+    const filesToUpdate: Array<{ path: string; content: string; language: string }> = [];
+    const filesToRead: Array<string> = [];
+    const filesToDelete: Array<string> = [];
+    const foldersToCreate: Array<string> = [];
+    const terminalCommands: Array<{ command: string; language: string }> = [];
+    const previewRequests: Array<string> = [];
+    const userQuestions: Array<string> = [];
     let match;
 
     // Extract code blocks
@@ -154,6 +214,18 @@ User: ${message}`;
       } else if (language === 'read-file') {
         // File reading request
         filesToRead.push(code);
+      } else if (language === 'delete-file') {
+        // File deletion request
+        filesToDelete.push(code);
+      } else if (language === 'create-folder') {
+        // Folder creation request
+        foldersToCreate.push(code);
+      } else if (language === 'preview') {
+        // Preview request
+        previewRequests.push(code);
+      } else if (language === 'question') {
+        // User question
+        userQuestions.push(code);
       } else {
         codeBlocks.push({
           language,
@@ -266,7 +338,7 @@ User: ${message}`;
     });
 
     // Execute terminal commands if any
-    const terminalResults = [];
+    const terminalResults: Array<{ command: string; output: string; success: boolean }> = [];
     for (const terminalCmd of terminalCommands) {
       try {
         const { stdout, stderr } = await execAsync(terminalCmd.command, {
@@ -290,7 +362,7 @@ User: ${message}`;
     }
 
     // Handle file reading requests
-    const fileReadResults = [];
+    const fileReadResults: Array<{ path: string; content: string; success: boolean; error?: string }> = [];
     for (const filePath of filesToRead) {
       try {
         const { readFile } = await import('fs/promises');
@@ -326,7 +398,7 @@ User: ${message}`;
     }
 
     // Handle file update requests
-    const fileUpdateResults = [];
+    const fileUpdateResults: Array<{ path: string; success: boolean; error?: string; message?: string }> = [];
     for (const fileUpdate of filesToUpdate) {
       try {
         const { writeFile } = await import('fs/promises');
@@ -351,6 +423,66 @@ User: ${message}`;
       }
     }
 
+    // Handle file deletion requests
+    const fileDeletionResults: Array<{ path: string; success: boolean; error?: string; message?: string }> = [];
+    for (const filePath of filesToDelete) {
+      try {
+        const { unlink } = await import('fs/promises');
+        const { join } = await import('path');
+        const { existsSync } = await import('fs');
+        
+        const projectRoot = process.cwd();
+        const fullPath = join(projectRoot, filePath);
+        
+        if (existsSync(fullPath)) {
+          await unlink(fullPath);
+          fileDeletionResults.push({
+            path: filePath,
+            success: true,
+            message: 'File deleted successfully'
+          });
+        } else {
+          fileDeletionResults.push({
+            path: filePath,
+            success: false,
+            error: 'File not found'
+          });
+        }
+      } catch (error) {
+        fileDeletionResults.push({
+          path: filePath,
+          success: false,
+          error: 'Failed to delete file'
+        });
+      }
+    }
+
+    // Handle folder creation requests
+    const folderCreationResults: Array<{ path: string; success: boolean; error?: string; message?: string }> = [];
+    for (const folderPath of foldersToCreate) {
+      try {
+        const { mkdir } = await import('fs/promises');
+        const { join } = await import('path');
+        
+        const projectRoot = process.cwd();
+        const fullPath = join(projectRoot, folderPath);
+        
+        await mkdir(fullPath, { recursive: true });
+        
+        folderCreationResults.push({
+          path: folderPath,
+          success: true,
+          message: 'Folder created successfully'
+        });
+      } catch (error) {
+        folderCreationResults.push({
+          path: folderPath,
+          success: false,
+          error: 'Failed to create folder'
+        });
+      }
+    }
+
     return NextResponse.json({
       response,
       codeBlocks,
@@ -358,8 +490,12 @@ User: ${message}`;
       filesToUpdate,
       fileReadResults,
       fileUpdateResults,
+      fileDeletionResults,
+      folderCreationResults,
       terminalResults,
-      model: model,
+      previewRequests,
+      userQuestions,
+      model: selectedModel,
     });
 
   } catch (error) {

@@ -34,6 +34,18 @@ function FileItem({ file, onSelect, onDelete, level }: FileItemProps) {
         className="flex items-center px-2 py-1 hover:bg-accent cursor-pointer group"
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={handleClick}
+        draggable={file.type === 'file'}
+        onDragStart={(e) => {
+          if (file.type === 'file') {
+            e.dataTransfer.setData('application/json', JSON.stringify({
+              type: 'file',
+              id: file.id,
+              name: file.name,
+              path: file.path,
+              content: file.content
+            }));
+          }
+        }}
       >
         {file.type === 'folder' ? (
           <Folder className="w-4 h-4 mr-2 text-blue-400" />

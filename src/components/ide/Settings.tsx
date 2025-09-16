@@ -195,22 +195,24 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 <h3 className="text-lg font-semibold text-white mb-4">AI Configuration</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">API Key</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">NVIDIA API Key</label>
                     <Input
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       className="bg-gray-800 border-gray-600 text-white"
-                      placeholder="Enter your AI API key"
+                      placeholder="Enter your NVIDIA API key"
                     />
                     <p className="text-xs text-gray-400 mt-1">Your API key is stored locally and never shared</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Default Model</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">NVIDIA Model</label>
                     <select className="w-full p-2 bg-gray-800 border-gray-600 border rounded-lg text-white">
-                      <option>Gemini Pro</option>
-                      <option>Claude 3.5 Sonnet</option>
-                      <option>GPT-4 Turbo</option>
+                      <option>qwen/qwen3-coder-480b-a35b-instruct</option>
+                      <option>nvidia/llama-3.3-nemotron-super-49b-v1.5</option>
+                      <option>meta/llama-3.2-3b-instruct</option>
+                      <option>meta/llama-3.2-1b-instruct</option>
+                      <option>meta/llama-3.1-70b-instruct</option>
                     </select>
                   </div>
                   <div className="flex items-center gap-3">
