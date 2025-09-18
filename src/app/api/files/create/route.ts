@@ -1,61 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { writeFile, mkdir } from 'fs/promises';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 export async function POST(request: NextRequest) {
   try {
-    const { projectId, files } = await request.json();
-
-    if (!projectId) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
-    }
+    const { files } = await request.json();
 
     if (!files || !Array.isArray(files)) {
-      return NextResponse.json({ error: 'Invalid files array' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid files array' },
+        { status: 400 }
+      );
     }
 
     const results = [];
-    const filesRef = collection(db, 'files');
 
     for (const file of files) {
       try {
-        const { path, content, type = 'file' } = file;
+        const { path, content } = file;
+        const fullPath = join(process.cwd(), path);
+        const dirPath = dirname(fullPath);
 
-        // Check if file or directory already exists at this path for this project
-        const q = query(filesRef, where('projectId', '==', projectId), where('path', '==', path));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          results.push({
-            path,
-            success: false,
-            error: 'File or directory already exists at this path',
-          });
-          continue;
+        // Create directory if it doesn't exist
+        if (!existsSync(dirPath)) {
+          await mkdir(dirPath, { recursive: true });
         }
 
-        const docData = {
-          projectId,
-          path,
-          name: path.split('/').pop(),
-          type,
-          content: type === 'file' ? content : null,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        await addDoc(filesRef, docData);
+        // Write file content
+        await writeFile(fullPath, content, 'utf8');
 
         results.push({
           path,
           success: true,
-          message: `${type === 'file' ? 'File' : 'Directory'} created successfully`,
+          message: 'File created successfully'
         });
       } catch (error) {
         results.push({
           path: file.path,
           success: false,
-          error: `Failed to create ${file.type || 'file'}`,
+          error: 'Failed to create file'
         });
       }
     }

@@ -1,45 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { readdir, stat } from 'fs/promises';
+import { join } from 'path';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId');
-    const directory = searchParams.get('dir') || '/';
+    const directory = searchParams.get('dir') || '.';
 
-    if (!projectId) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
-    }
-
-    const filesRef = collection(db, 'files');
-    const q = query(filesRef, where('projectId', '==', projectId));
-    const querySnapshot = await getDocs(q);
-
-    const allFiles = querySnapshot.docs.map(doc => doc.data());
-
-    const buildTree = (path) => {
-      const children = allFiles
-        .filter(file => {
-          const relativePath = file.path.substring(path.length);
-          return file.path.startsWith(path) && file.path !== path && !relativePath.substring(1).includes('/');
-        })
-        .map(file => {
-          const node = {
-            name: file.name,
-            type: file.type,
-            path: file.path,
-          };
-          if (file.type === 'directory') {
-            node.children = buildTree(file.path);
-          }
-          return node;
-        });
-      return children;
-    };
-
-    const rootPath = directory === '.' ? '/' : directory;
-    const files = buildTree(rootPath);
+    const files = await scanDirectory(directory);
 
     return NextResponse.json({ files });
   } catch (error) {
@@ -48,5 +16,40 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to scan directory' },
       { status: 500 }
     );
+  }
+}
+
+async function scanDirectory(dirPath: string): Promise<any[]> {
+  try {
+    const items = await readdir(dirPath);
+    const files = [];
+
+    for (const item of items) {
+      if (item.startsWith('.')) continue; // Skip hidden files
+
+      const fullPath = join(dirPath, item);
+      const stats = await stat(fullPath);
+
+      if (stats.isDirectory()) {
+        files.push({
+          name: item,
+          type: 'directory',
+          path: fullPath,
+          children: await scanDirectory(fullPath)
+        });
+      } else {
+        files.push({
+          name: item,
+          type: 'file',
+          path: fullPath,
+          size: stats.size,
+          modified: stats.mtime
+        });
+      }
+    }
+
+    return files;
+  } catch (error) {
+    return [];
   }
 }
