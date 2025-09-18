@@ -35,7 +35,7 @@ In a world where coding is becoming increasingly complex, Helix IDE offers a str
 ## ✨ Features
 
 *   **Full-Featured Code Editor:** Enjoy a rich editing experience with syntax highlighting, and more, powered by Monaco Editor.
-*   **AI Assistant:** Get help from AI models like GPT-4 and Gemini.
+*   **AI Assistant:** Get help from AI models like GPT-OSS and Deep-Seek.
 *   **Live Preview:** See your HTML, CSS, and JavaScript changes in real-time.
 *   **File Explorer:** Manage your project files and folders with ease.
 *   **Project Management:** Organize your work with a clean and intuitive dashboard.
