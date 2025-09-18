@@ -20,8 +20,8 @@ const nextConfig = {
     return config;
   },
   serverExternalPackages: ['monaco-editor'],
-  // Transpile undici to fix the private field syntax issue
-  transpilePackages: ['undici'],
+  // Transpile undici and firebase to fix the private field syntax issue
+  transpilePackages: ['undici', 'firebase'],
 }
 
 module.exports = nextConfig
